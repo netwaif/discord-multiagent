@@ -10,7 +10,8 @@ PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 # 설치 시점의 완전한 PATH를 굽는다 — launchd·비대화 로그인 셸에는 bun(.zshrc 전용) 등이 없어
 # claude가 spawn하는 MCP 서버(discord=bun, codex 등)가 죽는다 (2026-07-24 실측)
 PATH_ESC="${PATH//&/&amp;}"
-CMD="/bin/zsh -lc 'cd $DIR; export PATH=\"$PATH_ESC\"; export DISCORD_STATE_DIR=$DIR/.discord-state; exec claude --channels plugin:discord@claude-plugins-official'"
+# -n(세션 표시명)·--remote-control(폰 원격 접속)로 세션 구분·원격 진입을 기동 시 자동 활성화
+CMD="/bin/zsh -lc 'cd $DIR; export PATH=\"$PATH_ESC\"; export DISCORD_STATE_DIR=$DIR/.discord-state; exec claude -n orchestrator --remote-control orchestrator --channels plugin:discord@claude-plugins-official'"
 mkdir -p "$HOME/Library/LaunchAgents"
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

@@ -119,13 +119,16 @@ Discord 작업 채널에서 명령을 받고, 태스크별 스레드에 워커 �
 ```bash
 tmux new-session -d -s orchestrator -c ~/ai-folder/dev/discord-multiagent
 tmux send-keys -t orchestrator \
-  'export DISCORD_STATE_DIR=~/ai-folder/dev/discord-multiagent/.discord-state && claude --channels plugin:discord@claude-plugins-official' Enter
+  'export DISCORD_STATE_DIR=~/ai-folder/dev/discord-multiagent/.discord-state && claude -n orchestrator --remote-control orchestrator --channels plugin:discord@claude-plugins-official' Enter
 ```
 
 - `DISCORD_STATE_DIR` — discord 플러그인 상태를 세션별로 격리. 전역
   `~/.claude/channels/discord/`는 수다 채널 클로드 봇 소유이므로 건드리지 말 것.
 - `--channels plugin:discord@claude-plugins-official` — 없으면 수신 알림이 세션에 주입되지
   않는다 (MCP 로그에 "Channel notifications skipped").
+- `-n <이름>` / `--remote-control <이름>` — 세션 표시명 지정(/rename)과 Remote Control
+  활성화(/remote-control)를 기동 시 자동 적용. 폰(claude.ai)에서 이름으로 세션을 찾아
+  들어갈 수 있다. 원치 않으면 두 플래그를 빼면 된다.
 
 ### 테스트
 
