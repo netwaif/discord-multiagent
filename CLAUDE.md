@@ -144,4 +144,13 @@ cd <설치한-폴더> && claude
 - 게시 실패는 작업을 막지 않는다 — log.md에만 남기고 진행 (미러는 보기용, 정본은 파일)
 - log.md 태그는 정본 6종(`DECISION|WORKER_CALL|VERIFICATION|ERROR|APPROVAL|COMPLETE`)만
   사용한다 — 태스크 생성·라우팅·승인 대기 등은 전부 `[DECISION]`으로 기록 (임의 태그 금지)
+
+### 세션 재시작 (원격 — 컨텍스트가 찼을 때)
+사용자가 디스코드에서 이 세션의 재시작을 요청하면("세션 재시작해" 류). 승인 판정과
+동일하게 `APPROVER_USER_ID`의 **사람 발신**일 때만 수행한다.
+1. 진행 중 태스크가 있으면 `context.md`·`log.md`에 재개 지점을 기록한다(재진입 프로토콜 정본).
+2. reply로 짧게 답장: 재시작 들어감 + 성패는 웹훅 알림으로 도착 + 재기동 후 "이어서하자"로 재정박.
+3. `scripts/bot-restart.sh orchestrator` 실행 — 즉시 반환되고, 몇 초 뒤 이 세션이 교체된다.
+   (재시작 작업은 tmux 서버에 위탁되므로 이 세션이 죽어도 완주한다. 기동 명령은 LaunchAgent
+   plist에서 추출, bot-up.sh 직렬화 경유, 연결 성패는 웹훅으로 통지.)
 <!-- discord-multiagent:end -->

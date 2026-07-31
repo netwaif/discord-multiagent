@@ -133,6 +133,22 @@ tmux send-keys -t orchestrator \
   활성화(/remote-control)를 기동 시 자동 적용. 폰(claude.ai)에서 이름으로 세션을 찾아
   들어갈 수 있다. 원치 않으면 두 플래그를 빼면 된다.
 
+### 세션 원격 재시작 (디스코드 명령)
+
+봇 세션의 컨텍스트가 차면 자동 압축 대신 세션을 갈아끼우는 쪽이 품질이 좋다.
+터미널 없이 디스코드에서 봇에게 "세션 재시작해"라고 하면 봇이 마감 기록 후
+`scripts/bot-restart.sh <tmux-세션명>`을 실행한다 (CLAUDE.md "세션 재시작" 절).
+
+- 봇이 자기 자신을 죽이면 재기동을 못 하므로, 스크립트는 재시작 작업을 **tmux 서버에
+  위탁**(`run-shell -b`)하고 즉시 반환한다 — pane이 죽어도 재시작은 완주된다.
+- 기동 명령은 그 봇의 LaunchAgent plist에서 실시간 추출(정본 중복 없음), 재기동은
+  `bot-up.sh` 직렬화를 그대로 통과, 성패는 MCP 로그로 판정한다.
+- 판정 결과는 웹훅으로 통지된다(선택): `$BOT_RESTART_WEBHOOK` 또는
+  `~/.config/usage-coach/discord.json`의 `webhook_url`. 없으면 로그
+  (`~/.claude/logs/bot-restart.log`)에만 남는다.
+- 재기동 후 새 세션은 기억이 없다 — 디스코드에서 "이어서하자"로 재정박시킨다
+  (SESSION.md 또는 태스크 재진입 프로토콜).
+
 ### 테스트
 
 ```bash
