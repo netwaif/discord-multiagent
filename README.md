@@ -119,9 +119,12 @@ Discord 작업 채널에서 명령을 받고, 태스크별 스레드에 워커 �
 ```bash
 tmux new-session -d -s orchestrator -c ~/ai-folder/dev/discord-multiagent
 tmux send-keys -t orchestrator \
-  'export DISCORD_STATE_DIR=~/ai-folder/dev/discord-multiagent/.discord-state && claude -n orchestrator --remote-control orchestrator --channels plugin:discord@claude-plugins-official' Enter
+  'export DISCORD_STATE_DIR=~/ai-folder/dev/discord-multiagent/.discord-state && exec scripts/bot-up.sh -n orchestrator --remote-control orchestrator --channels plugin:discord@claude-plugins-official' Enter
 ```
 
+- `scripts/bot-up.sh` — claude를 그대로 exec 하되, 봇 여러 개가 동시 부팅할 때 discord
+  플러그인의 `bun install` 경합(EEXIST → MCP 연결 실패)을 전역 락으로 직렬화한다.
+  봇이 하나뿐이면 `claude`로 바로 기동해도 무방하다.
 - `DISCORD_STATE_DIR` — discord 플러그인 상태를 세션별로 격리. 전역
   `~/.claude/channels/discord/`는 수다 채널 클로드 봇 소유이므로 건드리지 말 것.
 - `--channels plugin:discord@claude-plugins-official` — 없으면 수신 알림이 세션에 주입되지
