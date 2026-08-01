@@ -63,8 +63,11 @@ fi
 WORKDIR=$(echo "$CMD" | grep -oE "cd [^;&']+" | head -1 | sed 's/^cd //; s/ *$//')
 MCP_LOG_DIR="$HOME/Library/Caches/claude-cli-nodejs/${WORKDIR//[\/.]/-}/mcp-logs-plugin-discord-discord"
 
-# 웹훅 (없으면 통지 생략)
+# 웹훅 (없으면 통지 생략) — folder-bot config → usage-coach 순
 WEBHOOK="${BOT_RESTART_WEBHOOK:-}"
+if [[ -z "$WEBHOOK" && -f "$HOME/.config/folder-bot/config.json" ]]; then
+  WEBHOOK=$(sed -nE 's/.*"webhook_url" *: *"([^"]+)".*/\1/p' "$HOME/.config/folder-bot/config.json" | head -1)
+fi
 if [[ -z "$WEBHOOK" && -f "$HOME/.config/usage-coach/discord.json" ]]; then
   WEBHOOK=$(sed -nE 's/.*"webhook_url" *: *"([^"]+)".*/\1/p' "$HOME/.config/usage-coach/discord.json" | head -1)
 fi
