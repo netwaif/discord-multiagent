@@ -1,112 +1,112 @@
-# 폴더 봇 유연화 — 설계
+# 폴더 봇 플러그인 — 설계
 
-2026-08-01 · 사용자 승인된 설계 (브레인스토밍 결과)
+2026-08-01 · 사용자 승인 설계 v2 (v1의 하네스 내장형을 플러그인 독립형으로 전환)
 
 ## 목표
 
-"업무 = 폴더" 세션을 전용 디스코드 채널 봇으로 유연하게 추가한다.
-지금은 클로드·코덱스 봇이 지정된 폴더·지정된 tmux 세션에 하드코딩돼 있다
-(plist에 폴더 경로·세션명·`-n`·`--remote-control` 플래그가 박혀 있음).
-이를 설정 파일로 빼고, CLAUDE.md/AGENTS.md의 디스코드 지침은 loadout 조각으로 승격한다.
+"업무 = 폴더" 세션을 전용 디스코드 채널 봇으로 만든다.
+**플러그인 하나 설치로 끝나는 경험**이 최우선 — 하네스(멀티 에이전트) 없이도,
+디스코드 봇 토큰만 있으면 어떤 Claude Code 사용자든 아무 폴더나 봇으로 만들 수 있다.
 
-확정 요구:
-- 봇 추가는 **수다 층**(대화형 세션) 우선. 봇마다 **폴더별 전용 채널** — 호명 게이트 불필요.
-- **모든 대화형 세션은 재시작으로 컨텍스트 관리**가 성립해야 한다
-  ("세션 마감하고 재시작해" → 웹훅 알림 → "이어서하자", scripts/bot-restart.sh 흐름).
+사용자 확정 요구:
+- 설치가 쉬워야 한다. 사용 가능한 유저 폭이 넓어야 한다.
+- 가능하면 플러그인 추가로 한 방에 설치. 안 되는 부분만 수동.
+- 수동 단계조차 AI 지침으로 가능한 부분은 매뉴얼에 명시한다.
+- 봇 추가는 수다 층(대화형) 우선, 봇마다 폴더별 전용 채널.
+- 모든 대화형 세션은 재시작으로 컨텍스트 관리가 성립해야 한다
+  ("세션 마감하고 재시작해" → 웹훅 알림 → "이어서하자").
 - 폴더 경로·세션명·리모트 컨트롤 이름 등은 사용자가 설정 가능해야 한다.
-- 디스코드 포탈 작업(봇 계정 생성·초대·채널 생성)은 수동 — 가이드 문서로 안내.
 
-## 현황 (실측)
+## 배포 형태
 
-- 클로드 봇 고정 지점 3곳: LaunchAgent plist(폴더·세션명·플래그) /
-  `.discord-state`(토큰·페어링) / CLAUDE.md 디스코드 블록(수동 작성).
-- codex-discord 브리지는 이미 다중 인스턴스 패턴 보유:
-  제미나이 봇 = `--env-file=.env.gemini` + `data-gemini/` + 별도 plist. 같은 코드, 설정만 분리.
-- loadout 조각 추가는 `generator/fragments/_TEMPLATE` 복사 + `meta.json` + `fragment.md`가 전부.
-  소스 레포 = `~/VSCodeWorkspace/loadout`.
-- `scripts/bot-restart.sh`는 plist에서 기동 명령을 실시간 추출하므로
-  plist가 올바르면 새 봇에도 무수정 동작.
+- **Claude Code 플러그인** `folder-bot` (netwaif 마켓플레이스 — loadout·multi-agent-starter와 동형).
+- 플러그인 스킬 `configure-bot` 하나가 봇 추가·제거·점검을 전부 지휘한다
+  (configure-store·configure-multiagent와 같은 사용 문법).
+- 필요한 스크립트(bot-up.sh 직렬화 래퍼, bot-restart.sh 원격 재시작)는 플러그인에 동봉 —
+  레포 클론 불필요. 정본은 하네스 레포, 플러그인 릴리즈 시 사본 동기화(자동화는 비범위).
 
-## 구성요소
+## 동작 설계
 
-### 1. `bots.json` — 봇 정의 설정 파일
+### 봇 추가 (스킬이 자동으로 하는 일)
 
-- 위치: 하네스 레포 루트(`~/ai-folder/dev/discord-multiagent/bots.json`).
-  개인값(경로·이름)이므로 **git 제외**, `bots.json.example` 동봉.
-- 스키마 (봇 하나 = 한 항목):
+대상 폴더에서 `configure-bot` 실행:
+
+1. 전제 점검 — discord 공식 플러그인, tmux, macOS 여부. 미비하면 설치 안내 후 중단.
+2. 질문 — 봇 이름 / 폴더(기본 = 현재 폴더) / tmux 세션명 / 리모트 컨트롤 켤지(기본 = 세션명).
+3. `~/.config/folder-bot/bots.json`에 항목 기록 (홈 설정 — 특정 레포에 묶이지 않음):
 
 ```json
 {
   "collab": {
-    "engine": "claude",            // claude | codex | gemini
+    "engine": "claude",
     "folder": "~/ai-folder/collab",
-    "session": "collab-bot",       // tmux 세션명 (= -n 표시명)
-    "remote_control": "collab-bot", // 생략 시 session 값. false면 비활성
-    "state_dir": "~/ai-folder/collab/.discord-state",  // claude 전용
-    "channel_id": "",              // codex/gemini 전용 (TUI_CHANNEL_ID)
+    "session": "collab-bot",
+    "remote_control": "collab-bot",
+    "state_dir": "~/ai-folder/collab/.discord-state",
     "autostart": true
   }
 }
 ```
 
-- 기존 두 봇(수다 클로드 `claude-discord`, 오케 `orchestrator`)도 이 파일로 이관해
-  같은 방식으로 관리한다.
+4. 동봉 스크립트를 `~/.local/bin/`에 설치(멱등): `bot-up`, `bot-restart`.
+5. LaunchAgent plist 생성·등록(부팅 자동 기동, bot-up 경유 — 다중 봇 동시 부팅 경합 직렬화).
+6. 대상 폴더 CLAUDE.md에 "디스코드 봇" 지침 블록을 마커로 설치(멱등, loadout과 같은 방식):
+   - 전용 채널 응대 규칙(채널 메시지 처리, reply 사용, 진행 편집).
+   - 세션 재시작 절: 재시작 요청 시 ① 세션 마감(SESSION.md — 세션 이어가기 규율과 짝)
+     ② 짧게 답장 ③ `bot-restart $(tmux display-message -p '#S')`.
+     세션명을 봇이 스스로 알아내므로 블록은 완전 정적 텍스트.
+7. 토큰 페어링으로 안내(아래 수동 단계) 후 즉시 기동, MCP 로그로 채널 연결 판정까지 확인해 보고.
 
-### 2. `scripts/install-autostart.sh` 확장
+### 수동 단계 (스킬이 단계별 안내 + 매뉴얼 명시)
 
-- `bots.json`을 읽어 봇마다 LaunchAgent plist를 멱등 생성·(재)등록한다.
-  - engine=claude → 기존 CMD 패턴(cd 폴더 + DISCORD_STATE_DIR + bot-up.sh -n … --remote-control … --channels …).
-  - engine=codex|gemini → codex-discord 레포에 `.env.<이름>` 생성(템플릿 + folder/channel 값 주입),
-    `data-<이름>/` 준비, 데몬 plist + (live 모드) TUI plist 생성. — **2단계 범위**.
-- `bots.json`이 없으면 기존 동작(오케 단일 설치) 유지 — 하위 호환.
-- `~/.local/bin/bot-restart` 심링크 생성(조각이 경로 없이 호출할 수 있도록).
-- launchctl bootout 주의사항(부팅 시 tmux 서버를 띄운 job을 내리면 프로세스 그룹째 죽는 문제)은
-  기존 결정 유지: 파일 갱신 후 다음 부팅 적용을 기본으로 하고, 즉시 기동은 tmux 직접 기동으로.
+- 디스코드 개발자 포탈: 봇 계정 생성 → 토큰 발급 → 인텐트 설정 → 서버 초대.
+- 서버에 전용 채널 생성.
+- 토큰 페어링·접근 승인(`/discord:configure`, `/discord:access` — 사용자가 터미널에서 실행).
 
-### 3. loadout 조각 "디스코드 봇" 신설 (소스: `~/VSCodeWorkspace/loadout`)
+### 재시작 컨텍스트 관리
 
-- 내용(정적 텍스트 — 폴더별 값 없음):
-  - 전용 채널 응대 규칙: 이 세션은 discord 플러그인으로 전용 채널에 연결된 봇이다.
-    채널 메시지 처리·reply 사용·긴 작업 시 진행 편집 등 기본 규약.
-  - **세션 재시작 절**: 사용자가 재시작을 요청하면 ① 세션 마감(SESSION.md 갱신 —
-    session-handoff 조각과 짝) ② 짧게 답장 ③ `bot-restart $(tmux display-message -p '#S')`
-    실행. 하네스 레포 경로는 머신마다 다르므로 조각에는 경로를 박지 않는다 —
-    install-autostart.sh가 `~/.local/bin/bot-restart` 심링크를 만들어 PATH로 해결.
-  - 봇이 자기 tmux 세션명을 `tmux display-message -p '#S'`로 알아내므로 조각에
-    세션별 값이 들어가지 않는다.
-- `fragment.codex.md` (AGENTS.md flavor): codex 폴더 봇용 동등 규칙 — **2단계 범위**.
-- 기존 수다 클로드 CLAUDE.md의 수동 블록은 조각 설치로 대체(중복 제거).
+- 검증된 bot-restart.sh 흐름 그대로: tmux 서버 위탁 → plist에서 기동 명령 추출 →
+  respawn → MCP 로그 판정 → 웹훅 통지(선택).
+- 웹훅 주소는 `~/.config/folder-bot/config.json`의 `webhook_url`(선택) — 없으면 로그만.
 
-### 4. 새 봇 추가 절차 (사용자 관점, 가이드 문서화)
+### 봇 제거·점검
 
-1. 디스코드 포탈: 봇 계정 생성 → 토큰 발급 → 서버 초대 / 서버에 전용 채널 생성
-2. 대상 폴더에서 토큰 페어링: `/discord:configure` (state_dir 지정)
-3. `bots.json`에 항목 추가
-4. `scripts/install-autostart.sh` 실행
-5. loadout으로 "디스코드 봇" + "세션 이어가기" 조각 설치
+- 제거: plist 내리기 + bots.json 항목 삭제 + CLAUDE.md 블록 반품(마커 기준, 멱등).
+- 점검(doctor): bots.json ↔ plist ↔ 실행 상태 ↔ CLAUDE.md 블록 대조, 읽기 전용 보고.
 
-이후: 채널에서 대화 → 컨텍스트 차면 "세션 마감하고 재시작해" → 웹훅 확인 → "이어서하자".
+## 기존 자산과의 관계
+
+- 하네스 사용자: 오케 봇 기동은 기존 install-autostart.sh 그대로. 수다 클로드 봇은
+  이 플러그인으로 이관 가능(개인 마이그레이션 — 구현 후 별도 수행).
+- loadout: "디스코드 봇" 조각을 카탈로그에도 등재(선택 설치 경로). 플러그인 블록과
+  같은 마커 이름을 써서 이중 설치를 방지(doctor가 감지). 3단계 범위.
+- codex-discord 브리지: engine=codex|gemini 봇은 브리지 인스턴스 패턴(`.env.<이름>` +
+  `data-<이름>/` + 별도 plist — 제미나이 봇으로 검증된 구조)을 스킬이 생성. 2단계 범위.
 
 ## 에러 처리
 
-- install-autostart: bots.json 파싱 실패·필수 키 누락 시 해당 봇 건너뛰고 명시 보고(전체 중단 아님).
-- 동시 부팅 경합은 기존 bot-up.sh 락이 해결(봇 수가 늘어도 직렬화 유지).
-- bot-restart: 레지스트리 도입 후에도 현행 plist 추출 방식 유지(정본은 plist — bots.json은 생성 입력).
+- 전제 미비(플러그인·tmux 없음)는 시작 전에 중단하고 설치 안내.
+- bots.json 파싱 실패·필수 키 누락은 해당 봇만 건너뛰고 명시 보고.
+- 페어링 안 된 상태로 기동하면 연결 실패가 MCP 로그 판정에 잡힌다 — 스킬이 원인 후보
+  (토큰 미페어링·인텐트 누락)를 안내.
 
 ## 검증 기준
 
-- bots.json에 시험 봇 항목 추가 → install-autostart 실행 → plist 생성·기동·채널 연결(MCP 로그) 확인.
-- 재시작 흐름: 새 봇에서 bot-restart.sh 자기 세션명 탐지 → respawn → 웹훅 통지 확인.
-- loadout doctor 통과 + 조각 설치/반품 멱등성.
-- 기존 두 봇 이관 후 재부팅 스모크(3봇 연결 판정 절차 재사용).
+- 협업 폴더에 시험 봇 1개: 스킬 실행 → 포탈 단계 안내 → 기동 → 채널 연결 판정 통과.
+- 재시작 흐름: 채널에서 "세션 마감하고 재시작해" → respawn → 웹훅 통지 → "이어서하자" 재정박.
+- 제거 후 재설치 멱등성. doctor 무결 보고.
+- 하네스 기존 3봇(수다·오케·코덱스)이 영향 없이 계속 동작(재부팅 스모크 재사용).
 
 ## 비범위 (YAGNI)
 
-- 중앙 매니저 데몬, 작업 채널(오케층) 다중화, 봇 간 대화, 채널 자동 생성(포탈 API).
-- 공개 릴리즈·매뉴얼 반영은 1단계 검증 후 별도 결정.
+- 리눅스/윈도우 자동화(systemd 등) — 매뉴얼에 "macOS만 검증" 명시, 구조적 차단 없음만 확인.
+- 디스코드 채널·봇 계정 자동 생성(포탈 API), 중앙 매니저 데몬, 작업 채널(오케층) 다중화, 봇 간 대화.
+- 하네스 레포 ↔ 플러그인 스크립트 자동 동기화.
 
 ## 구현 순서
 
-1. **1단계**: bots.json + install-autostart 확장(claude) + loadout "디스코드 봇" 조각(CLAUDE.md flavor) + 기존 봇 이관 + 시험 봇 1개(협업 폴더) 검증
-2. **2단계**: codex/gemini 인스턴스 자동화 + fragment.codex.md
-3. **3단계**: 가이드 문서·매뉴얼 반영·릴리즈(사용자 결정)
+1. **1단계**: 플러그인 스캐폴드 + configure-bot 스킬(claude 엔진) + 스크립트 동봉 +
+   협업 폴더 시험 봇으로 전 흐름 검증.
+2. **2단계**: codex/gemini 엔진(브리지 인스턴스 자동화) + AGENTS.md 지침 블록.
+3. **3단계**: 마켓플레이스 릴리즈 + 매뉴얼(수동 단계·AI 지침 포함) + loadout 등재 +
+   기존 수다 클로드 이관. 각각 사용자 결정 후.
