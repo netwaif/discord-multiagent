@@ -1,0 +1,5 @@
+# discord 하네스 비밀 — 커밋 금지 (harness-installer overlay)
+.env
+.discord-state/
+.bot-token-*
+.webhook-url

@@ -7,7 +7,8 @@
     { "src": "scripts/new-thread.sh",        "dst": "scripts/new-thread.sh",        "mode": "755" },
     { "src": "scripts/install-autostart.sh", "dst": "scripts/install-autostart.sh", "mode": "755" },
     { "src": ".env.example",                 "dst": ".env.example",                 "mode": "644" },
-    { "src": ".mcp.json",                    "dst": ".mcp.json",                    "mode": "644", "merge": "json-mcp-servers" }
+    { "src": ".mcp.json",                    "dst": ".mcp.json",                    "mode": "644", "merge": "json-mcp-servers" },
+    { "src": "install/gitignore-discord",    "dst": ".gitignore",                   "mode": "644", "merge": "append-lines" }
   ],
   "seeds": [
     { "src": "install/chat-CLAUDE.md", "dst": "chat/CLAUDE.md" }
