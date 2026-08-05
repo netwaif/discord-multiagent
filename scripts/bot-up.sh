@@ -71,7 +71,17 @@ if (( acquired )); then
     done
     rm -f "$STAMP"
     rm -rf "$LOCK_DIR"
-  ) &
+  ) >/dev/null 2>&1 &
+  # ↑ fd 분리 — 감시자가 stdout 파이프를 붙들면 $(bot-up …) 형태의 호출이
+  #   CONNECT_TIMEOUT 내내 블록된다 (2026-08-05 테스트 실측)
+fi
+
+# 무인 봇 권한 모드 — 프로덕션 실측(저자 '전역' permissions.defaultMode=auto)의
+# 세션 한정 번역. 프로젝트 settings.local.json의 defaultMode는 user 스코프 전용이라
+# 효력이 없다(2026-08-05 E2E 실측: 주입돼도 manual mode 유지). 세션 플래그는
+# 봇에게만 적용돼 계정 전역을 오염하지 않는다. 호출자 지정이 있으면 존중.
+if [[ " $* " != *" --permission-mode "* ]]; then
+  set -- "$@" --permission-mode "${BOT_PERMISSION_MODE:-auto}"
 fi
 
 log "claude 기동: $CLAUDE_BIN $*"
