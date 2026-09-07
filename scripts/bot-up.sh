@@ -40,7 +40,13 @@ while (( SECONDS < deadline )); do
     log "락 보유자($holder) 사망 — 스틸"
     rm -rf "$LOCK_DIR"; continue
   fi
-  mtime=$(stat -f %m "$LOCK_DIR" 2>/dev/null || echo 0)
+  # stat은 BSD(-f %m)/GNU(-c %Y) 문법이 다르다 — GNU에서 -f는 파일시스템 정보를 내놓아
+  # mtime에 "File: …" 문자열이 들어가고 set -u로 즉사한다(WSL2 실측 2026-09-07)
+  if [[ "$(uname -s)" == Linux ]]; then
+    mtime=$(stat -c %Y "$LOCK_DIR" 2>/dev/null || echo 0)
+  else
+    mtime=$(stat -f %m "$LOCK_DIR" 2>/dev/null || echo 0)
+  fi
   if (( mtime > 0 && $(date +%s) - mtime > STALE_SEC )); then
     log "락이 ${STALE_SEC}초 이상 잔존 — 스틸"
     rm -rf "$LOCK_DIR"; continue
@@ -57,7 +63,8 @@ fi
 
 # --- 연결 판정 감시자: 이 봇의 discord MCP 로그에 성공/실패가 찍히면 락 해제 ---
 if (( acquired )); then
-  MCP_LOG_DIR="$HOME/Library/Caches/claude-cli-nodejs/${PWD//[\/.]/-}/mcp-logs-plugin-discord-discord"
+  CLAUDE_CACHE="$HOME/Library/Caches/claude-cli-nodejs"; [[ "$(uname -s)" == Linux ]] && CLAUDE_CACHE="$HOME/.cache/claude-cli-nodejs"
+  MCP_LOG_DIR="$CLAUDE_CACHE/${PWD//[\/.]/-}/mcp-logs-plugin-discord-discord"
   STAMP=$(mktemp "${TMPDIR:-/tmp}/bot-up-stamp.XXXXXX")
   (
     watch_deadline=$((SECONDS + CONNECT_TIMEOUT))
