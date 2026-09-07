@@ -42,9 +42,13 @@ fi
 # --- 2단계(tmux 서버 아래, pane 사망과 무관하게 진행) ---
 log "=== $NAME 재시작 시작 ==="
 
-# 기동 명령 = LaunchAgent plist에서 추출 (tmux new-session -s <NAME> 의 마지막 인자)
+# 기동 명령 = macOS: LaunchAgent plist에서 추출 (tmux new-session -s <NAME> 의 마지막 인자)
+#            리눅스: install-autostart.sh/harnessctl이 남긴 ~/.config/systemd/user/<NAME>.tmux-cmd 사이드카
 CMD=""
-for p in "$HOME/Library/LaunchAgents"/*.plist; do
+if [[ "$(uname -s)" == Linux ]]; then
+  [[ -f "$HOME/.config/systemd/user/$NAME.tmux-cmd" ]] && CMD=$(cat "$HOME/.config/systemd/user/$NAME.tmux-cmd")
+fi
+[[ -n "$CMD" ]] || for p in "$HOME/Library/LaunchAgents"/*.plist; do
   CMD=$(/usr/bin/plutil -extract ProgramArguments json -o - "$p" 2>/dev/null \
     | /usr/bin/python3 -c "
 import json,sys
@@ -55,13 +59,14 @@ if '-s' in a and a[a.index('-s')+1]=='$NAME' and 'new-session' in a: print(a[-1]
   [[ -n "$CMD" ]] && break
 done
 if [[ -z "$CMD" ]]; then
-  log "실패: 세션 '$NAME'의 LaunchAgent plist를 찾지 못함"
+  log "실패: 세션 '$NAME'의 기동 명령(LaunchAgent plist / systemd .tmux-cmd)을 찾지 못함"
   exit 1
 fi
 
 # 작업폴더(cd 대상) → 이 봇의 discord MCP 로그 경로 (bot-up.sh와 같은 규칙)
 WORKDIR=$(echo "$CMD" | grep -oE "cd [^;&']+" | head -1 | sed 's/^cd //; s/ *$//')
-MCP_LOG_DIR="$HOME/Library/Caches/claude-cli-nodejs/${WORKDIR//[\/.]/-}/mcp-logs-plugin-discord-discord"
+CLAUDE_CACHE="$HOME/Library/Caches/claude-cli-nodejs"; [[ "$(uname -s)" == Linux ]] && CLAUDE_CACHE="$HOME/.cache/claude-cli-nodejs"
+MCP_LOG_DIR="$CLAUDE_CACHE/${WORKDIR//[\/.]/-}/mcp-logs-plugin-discord-discord"
 
 # 웹훅 (없으면 통지 생략) — folder-bot config → usage-coach 순
 WEBHOOK="${BOT_RESTART_WEBHOOK:-}"
